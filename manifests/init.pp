@@ -18,10 +18,21 @@ class ruby(
         ensure => absent ;
       "${boxen::config::envdir}/ruby.sh":
         ensure => absent ;
+      "${boxen::config::envdir}/ruby.fish":
+        ensure => absent ;
     }
 
-    boxen::env_script { 'ruby':
+    boxen::env_script { 'ruby.sh':
+      scriptname => 'ruby',
+      extension => 'sh',
       content  => template('ruby/ruby.sh'),
+      priority => 'higher',
+    }
+
+    boxen::env_script { 'ruby.fish':
+      scriptname => 'ruby',
+      extension => 'fish',
+      content  => template('ruby/ruby.fish'),
       priority => 'higher',
     }
   }
