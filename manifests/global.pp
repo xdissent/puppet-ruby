@@ -1,21 +1,26 @@
-# Public: specify the global ruby version as per rbenv
+# Public: specify the global ruby version (only for rbenv)
 #
 # Usage:
 #
 #   class { 'ruby::global': version => '1.9.3' }
 
 class ruby::global($version = '1.9.3') {
-  include ruby
+  require ruby
 
-  if $version != 'system' {
-    $klass = join(['ruby', join(split($version, '[.-]'), '_')], '::')
-    require $klass
-  }
+  if $ruby::provider == 'rbenv' {
+    if $version != 'system' {
+      ensure_resource('ruby::version', $version)
+      $require = Ruby::Version[$version]
+    } else {
+      $require = undef
+    }
 
-  file { "${ruby::rbenv_root}/version":
-    ensure  => present,
-    owner   => $ruby::user,
-    mode    => '0644',
-    content => "${version}\n",
+    file { "${ruby::rbenv::prefix}/version":
+      ensure  => present,
+      owner   => $ruby::user,
+      mode    => '0644',
+      content => "${version}\n",
+      require => $require,
+    }
   }
 }

@@ -1,4 +1,4 @@
-# Installs a ruby version via rbenv.
+# Installs a ruby version with ruby-build..
 # Takes ensure, env, and version params.
 #
 # Usage:
@@ -11,57 +11,64 @@ define ruby::version(
   $version = $name
 ) {
   require ruby
+  require ruby::build
 
-  case $::osfamily {
-    'Darwin': {
-      require xquartz
-      include homebrew::config
+  $alias_hash = hiera_hash('ruby::version::alias', {})
 
-      $os_env = {
-        'BOXEN_S3_HOST'   => $::boxen_s3_host,
-        'BOXEN_S3_BUCKET' => $::boxen_s3_bucket,
-        'CFLAGS'          => "-I${homebrew::config::installdir}/include -I/opt/X11/include",
-        'LDFLAGS'         => "-L${homebrew::config::installdir}/lib -L/opt/X11/lib",
-      }
-    }
+  if has_key($alias_hash, $version) {
+    $to = $alias_hash[$version]
 
-    default: {
-      $os_env = {}
-    }
-  }
-
-  $dest = "${ruby::rbenv_root}/versions/${version}"
-
-  if $ensure == 'absent' {
-    file { $dest:
-      ensure => absent,
-      force  => true
+    ruby::alias { $version:
+      ensure => $ensure,
+      to     => $to,
     }
   } else {
+
+    case $version {
+      /jruby/: { require 'java' }
+      default: { }
+    }
+
     $default_env = {
-      'CC'         => '/usr/bin/cc',
-      'RBENV_ROOT' => $ruby::rbenv_root
+      'CC' => '/usr/bin/cc',
     }
 
-    $final_env = merge(merge($default_env, $os_env), $env)
+    if $::operatingsystem == 'Darwin' {
+      require xquartz
+      include homebrew::config
+      include boxen::config
+      ensure_resource('package', 'readline')
+      Package['readline'] -> Ruby <| |>
+    }
 
-    exec { "ruby-install-${version}":
-      command     => "${ruby::rbenv_root}/bin/rbenv install ${version}",
-      cwd         => "${ruby::rbenv_root}/versions",
-      provider    => 'shell',
-      timeout     => 0,
-      creates     => $dest,
+    $hierdata = hiera_hash('ruby::version::env', {})
+
+    if has_key($hierdata, $::operatingsystem) {
+      $os_env = $hierdata[$::operatingsystem]
+    } else {
+      $os_env = {}
+    }
+
+    if has_key($hierdata, $version) {
+      $version_env = $hierdata[$version]
+    } else {
+      $version_env = {}
+    }
+
+    $_env = merge(merge(merge($default_env, $os_env), $version_env), $env)
+
+    if has_key($_env, 'CC') and $_env['CC'] =~ /gcc/ {
+      require gcc
+    }
+
+    ruby { $version:
+      ensure      => $ensure,
+      environment => $_env,
+      ruby_build  => "${ruby::build::prefix}/bin/ruby-build",
       user        => $ruby::user,
-    }
-    ->
-    ruby::gem { "bundler for ${version}":
-      gem     => 'bundler',
-      ruby    => $version,
-      version => '~> 1.0'
+      provider    => rubybuild,
     }
 
-    Exec["ruby-install-${version}"] {
-      environment +> sort(join_keys_to_values($final_env, '='))
-    }
   }
+
 }
