@@ -17,15 +17,6 @@ class ruby(
   include $provider_class
 
   if $::osfamily == 'Darwin' {
-    file {
-      "${boxen::config::envdir}/rbenv.sh":
-        ensure => absent ;
-      "${boxen::config::envdir}/ruby.sh":
-        ensure => absent ;
-      "${boxen::config::envdir}/ruby.fish":
-        ensure => absent ;
-    }
-
     boxen::env_script { 'ruby.sh':
       scriptname => 'ruby',
       extension => 'sh',
